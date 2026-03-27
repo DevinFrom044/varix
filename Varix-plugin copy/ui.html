@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Varix</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      :root {
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #1d1d1f;
+        color: #ffffff;
+      }
+
+      .shell {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .header {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .name-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .brand-mark {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+      }
+
+      .brand-title {
+        font-size: 20px;
+        line-height: 1.2;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .brand-label {
+        font-size: 11px;
+        line-height: 1.2;
+        color: #8e8e94;
+      }
+
+      .info {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .file-card,
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .file-card {
+        padding-right: 16px;
+        min-height: 20px;
+      }
+
+      .file-card-emoji,
+      .status-emoji {
+        font-size: 16px;
+        line-height: 1;
+        color: #8e8e94;
+      }
+
+      .file-name {
+        font-size: 13px;
+        line-height: 1.3;
+        font-weight: 500;
+        color: #ffffff;
+      }
+
+      .status {
+        display: none;
+      }
+
+      .status.success,
+      .status.error {
+        display: flex;
+      }
+
+      .status-text {
+        font-size: 11px;
+        line-height: 1.3;
+        font-weight: 400;
+      }
+
+      .status.success .status-text {
+        color: #00c411;
+      }
+
+      .status.error .status-text {
+        color: #ff6b6b;
+      }
+
+      .collections {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .collection {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+        border-radius: 16px;
+        padding: 14px 16px;
+        background: #2c2c2e33;
+      }
+
+      .collection-left {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .collection-checkbox {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        background: #2e77f5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+
+      .collection-checkbox input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .checkmark {
+        font-size: 11px;
+        line-height: 1;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .collection-checkbox.is-unchecked {
+        background: #22222399;
+      }
+
+      .collection-checkbox.is-unchecked .checkmark {
+        opacity: 0;
+      }
+
+      .collection-info {
+        min-width: 0;
+      }
+
+      .collection-title {
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.3;
+        word-break: break-word;
+        color: #ffffff;
+      }
+
+      .collection-stats {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+      }
+
+      .collection-count {
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.3;
+        color: #ffffff;
+        text-align: right;
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        gap: 4px;
+      }
+
+      .collection-count-unit {
+        font-size: 13px;
+        font-weight: 500;
+        color: #ffffff;
+      }
+
+      .collection-stats-modes {
+        font-size: 11px;
+        line-height: 1.3;
+        color: #8e8e94;
+        text-align: right;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 8px;
+        padding: 12px 20px;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+        min-height: 40px;
+      }
+
+      button.primary {
+        background: #007aff;
+        color: #ffffff;
+        border-radius: 10px;
+      }
+
+      button.secondary {
+        background: #22222399;
+        color: #ffffff;
+      }
+
+      button.ghost {
+        background: #22222399;
+        color: #ffffff;
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="header">
+        <div class="name-block">
+          <div class="brand-title">Varix</div>
+          <div class="brand-label">by GuruApps Design Team</div>
+        </div>
+        <svg class="brand-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="100" height="100" rx="50" fill="#01011C"/>
+          <g clip-path="url(#clip0_varix_logo)">
+            <path d="M44.8276 66.3789V73.2754C44.8276 73.7327 45.0092 74.1712 45.3326 74.4946C45.6559 74.8179 46.0945 74.9996 46.5517 74.9996H73.2759C73.7331 74.9996 74.1717 74.8179 74.495 74.4946C74.8184 74.1712 75 73.7327 75 73.2754V46.5513C75 46.094 74.8184 45.6555 74.495 45.3321C74.1717 45.0088 73.7331 44.8271 73.2759 44.8271H66.3793C66.373 50.5411 64.1004 56.0192 60.06 60.0596C56.0197 64.1 50.5415 66.3726 44.8276 66.3789V66.3789Z" fill="#009AFF"/>
+            <path d="M44.8287 46.5513V64.6547C50.0873 64.6547 55.1305 62.5658 58.8489 58.8474C62.5673 55.129 64.6562 50.0858 64.6562 44.8271H46.5528C46.0955 44.8271 45.657 45.0088 45.3337 45.3321C45.0103 45.6555 44.8287 46.094 44.8287 46.5513Z" fill="#9013FE"/>
+            <path d="M25.0003 44.8278C25.0004 49.7879 26.8596 54.5678 30.2109 58.2244C33.5623 61.881 38.1625 64.1486 43.1038 64.5799V46.5519C43.1038 45.6374 43.4671 44.7603 44.1138 44.1136C44.7604 43.4669 45.6375 43.1036 46.5521 43.1036H64.5801C64.1349 38.0145 61.7426 33.2936 57.902 29.9251C54.0613 26.5565 49.0687 24.8004 43.965 25.0227C38.8613 25.245 34.0403 27.4287 30.5072 31.1184C26.974 34.8081 25.0013 39.7192 25.0003 44.8278V44.8278Z" fill="#FDD426"/>
+          </g>
+          <defs>
+            <clipPath id="clip0_varix_logo">
+              <rect width="50" height="50" fill="white" transform="matrix(-1 0 0 1 75 25)"/>
+            </clipPath>
+          </defs>
+        </svg>
+      </div>
+
+      <div class="info">
+        <div class="file-card">
+          <div class="file-card-emoji">🔗</div>
+          <div id="file-name" class="file-name">Loading current Figma file…</div>
+        </div>
+        <div id="status" class="status">
+          <div class="status-emoji">✅</div>
+          <div id="status-text" class="status-text"></div>
+        </div>
+      </div>
+
+      <div id="collections" class="collections">
+        <div class="collection">
+          <div class="collection-left">
+            <label class="collection-checkbox">
+              <input type="checkbox" checked disabled />
+              <span class="checkmark">✓</span>
+            </label>
+            <div class="collection-info">
+              <div class="collection-title">Reading local variable collections…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="button-group">
+          <button id="select-all-btn" class="secondary" type="button">Select all</button>
+          <button id="clear-all-btn" class="ghost" type="button">Deselect all</button>
+        </div>
+        <button id="export-btn" class="primary" type="button" disabled>Export</button>
+      </div>
+    </div>
+
+    <script>
+      const state = {
+        fileName: "Untitled",
+        suggestedFileName: "figma-file.xcassets.zip",
+        collections: [],
+        pendingSaveHandle: null
+      };
+
+      const textEncoder = new TextEncoder();
+      const statusEl = document.getElementById("status");
+      const statusEmojiEl = document.querySelector(".status-emoji");
+      const statusTextEl = document.getElementById("status-text");
+      const fileNameEl = document.getElementById("file-name");
+      const collectionsEl = document.getElementById("collections");
+      const exportBtn = document.getElementById("export-btn");
+      const selectAllBtn = document.getElementById("select-all-btn");
+      const clearAllBtn = document.getElementById("clear-all-btn");
+
+      function showStatus(message, tone) {
+        statusEmojiEl.textContent = tone === "error" ? "❌" : "✅";
+        statusTextEl.textContent = message;
+        statusEl.className = `status ${tone}`;
+      }
+
+      function clearStatus() {
+        statusTextEl.textContent = "";
+        statusEl.className = "status";
+      }
+
+      function getSelectedCollectionIds() {
+        return Array.from(
+          collectionsEl.querySelectorAll('input[type="checkbox"][data-collection-id]:checked')
+        ).map((input) => input.getAttribute("data-collection-id"));
+      }
+
+      function updateExportState() {
+        exportBtn.disabled = getSelectedCollectionIds().length === 0 || state.collections.length === 0;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function createCollectionItem(collection) {
+        const label = document.createElement("label");
+        label.className = "collection";
+
+        const left = document.createElement("div");
+        left.className = "collection-left";
+
+        const checkbox = document.createElement("label");
+        checkbox.className = "collection-checkbox";
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = true;
+        input.setAttribute("data-collection-id", collection.id);
+        input.addEventListener("change", () => {
+          checkbox.classList.toggle("is-unchecked", !input.checked);
+          updateExportState();
+        });
+
+        const checkmark = document.createElement("span");
+        checkmark.className = "checkmark";
+        checkmark.textContent = "✓";
+
+        const info = document.createElement("div");
+        info.className = "collection-info";
+        const modes = collection.modes.map((mode) => mode.name).join(", ");
+        info.innerHTML = `
+          <div class="collection-title">${escapeHtml(collection.name)}</div>
+        `;
+
+        const stats = document.createElement("div");
+        stats.className = "collection-stats";
+        stats.innerHTML = `
+          <div class="collection-count">${collection.variableCount}<span class="collection-count-unit">variables</span></div>
+          <div class="collection-stats-modes">${escapeHtml(modes || "None")}</div>
+        `;
+
+        checkbox.appendChild(input);
+        checkbox.appendChild(checkmark);
+        left.appendChild(checkbox);
+        left.appendChild(info);
+        label.appendChild(left);
+        label.appendChild(stats);
+        return label;
+      }
+
+      function renderCollections() {
+        collectionsEl.innerHTML = "";
+
+        if (state.collections.length === 0) {
+          collectionsEl.innerHTML = '<div class="collection"><div class="collection-info"><div class="collection-title">No local variable collections were found in this file.</div></div></div>';
+          updateExportState();
+          return;
+        }
+
+        for (const collection of state.collections) {
+          collectionsEl.appendChild(createCollectionItem(collection));
+        }
+
+        updateExportState();
+      }
+
+      function downloadBlob(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      async function pickSaveHandle(suggestedFileName) {
+        if (typeof window.showSaveFilePicker !== "function") {
+          return null;
+        }
+
+        return window.showSaveFilePicker({
+          suggestedName: suggestedFileName,
+          excludeAcceptAllOption: false,
+          types: [
+            {
+              description: "ZIP archive",
+              accept: {
+                "application/zip": [".zip"]
+              }
+            }
+          ]
+        });
+      }
+
+      function createCrc32Table() {
+        const table = new Uint32Array(256);
+        for (let i = 0; i < 256; i += 1) {
+          let value = i;
+          for (let bit = 0; bit < 8; bit += 1) {
+            if ((value & 1) === 1) {
+              value = 0xedb88320 ^ (value >>> 1);
+            } else {
+              value >>>= 1;
+            }
+          }
+          table[i] = value >>> 0;
+        }
+        return table;
+      }
+
+      const crc32Table = createCrc32Table();
+
+      function crc32(bytes) {
+        let crc = 0xffffffff;
+        for (const byte of bytes) {
+          crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+        }
+        return (crc ^ 0xffffffff) >>> 0;
+      }
+
+      function writeUint16(view, offset, value) {
+        view.setUint16(offset, value, true);
+      }
+
+      function writeUint32(view, offset, value) {
+        view.setUint32(offset, value, true);
+      }
+
+      function getDosDateTime(date) {
+        const safeDate = new Date(date);
+        const year = Math.max(1980, safeDate.getFullYear());
+        const dosTime =
+          ((safeDate.getHours() & 0x1f) << 11) |
+          ((safeDate.getMinutes() & 0x3f) << 5) |
+          Math.floor(safeDate.getSeconds() / 2);
+        const dosDate =
+          (((year - 1980) & 0x7f) << 9) |
+          (((safeDate.getMonth() + 1) & 0x0f) << 5) |
+          (safeDate.getDate() & 0x1f);
+        return { dosDate, dosTime };
+      }
+
+      function concatUint8Arrays(chunks) {
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const output = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          output.set(chunk, offset);
+          offset += chunk.length;
+        }
+        return output;
+      }
+
+      function buildZip(files) {
+        const now = new Date();
+        const localParts = [];
+        const centralParts = [];
+        let localOffset = 0;
+
+        for (const file of files) {
+          const fileNameBytes = textEncoder.encode(file.path);
+          const contentBytes = textEncoder.encode(file.content);
+          const checksum = crc32(contentBytes);
+          const { dosDate, dosTime } = getDosDateTime(now);
+
+          const localHeader = new Uint8Array(30 + fileNameBytes.length);
+          const localView = new DataView(localHeader.buffer);
+          writeUint32(localView, 0, 0x04034b50);
+          writeUint16(localView, 4, 20);
+          writeUint16(localView, 6, 0);
+          writeUint16(localView, 8, 0);
+          writeUint16(localView, 10, dosTime);
+          writeUint16(localView, 12, dosDate);
+          writeUint32(localView, 14, checksum);
+          writeUint32(localView, 18, contentBytes.length);
+          writeUint32(localView, 22, contentBytes.length);
+          writeUint16(localView, 26, fileNameBytes.length);
+          writeUint16(localView, 28, 0);
+          localHeader.set(fileNameBytes, 30);
+
+          localParts.push(localHeader, contentBytes);
+
+          const centralHeader = new Uint8Array(46 + fileNameBytes.length);
+          const centralView = new DataView(centralHeader.buffer);
+          writeUint32(centralView, 0, 0x02014b50);
+          writeUint16(centralView, 4, 20);
+          writeUint16(centralView, 6, 20);
+          writeUint16(centralView, 8, 0);
+          writeUint16(centralView, 10, 0);
+          writeUint16(centralView, 12, dosTime);
+          writeUint16(centralView, 14, dosDate);
+          writeUint32(centralView, 16, checksum);
+          writeUint32(centralView, 20, contentBytes.length);
+          writeUint32(centralView, 24, contentBytes.length);
+          writeUint16(centralView, 28, fileNameBytes.length);
+          writeUint16(centralView, 30, 0);
+          writeUint16(centralView, 32, 0);
+          writeUint16(centralView, 34, 0);
+          writeUint16(centralView, 36, 0);
+          writeUint32(centralView, 38, 0);
+          writeUint32(centralView, 42, localOffset);
+          centralHeader.set(fileNameBytes, 46);
+          centralParts.push(centralHeader);
+
+          localOffset += localHeader.length + contentBytes.length;
+        }
+
+        const centralDirectory = concatUint8Arrays(centralParts);
+        const localDirectory = concatUint8Arrays(localParts);
+        const endOfCentralDirectory = new Uint8Array(22);
+        const endView = new DataView(endOfCentralDirectory.buffer);
+        writeUint32(endView, 0, 0x06054b50);
+        writeUint16(endView, 4, 0);
+        writeUint16(endView, 6, 0);
+        writeUint16(endView, 8, files.length);
+        writeUint16(endView, 10, files.length);
+        writeUint32(endView, 12, centralDirectory.length);
+        writeUint32(endView, 16, localDirectory.length);
+        writeUint16(endView, 20, 0);
+
+        return new Blob([localDirectory, centralDirectory, endOfCentralDirectory], {
+          type: "application/zip"
+        });
+      }
+
+      async function saveZip(blob, suggestedFileName) {
+        if (state.pendingSaveHandle) {
+          const writable = await state.pendingSaveHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          state.pendingSaveHandle = null;
+          return "saved";
+        }
+
+        downloadBlob(blob, suggestedFileName);
+        return "downloaded";
+      }
+
+      async function handleExportClick() {
+        const collectionIds = getSelectedCollectionIds();
+        if (collectionIds.length === 0) {
+          showStatus("Select at least one collection before exporting.", "error");
+          return;
+        }
+
+        clearStatus();
+        exportBtn.disabled = true;
+        selectAllBtn.disabled = true;
+        clearAllBtn.disabled = true;
+
+        try {
+          state.pendingSaveHandle = await pickSaveHandle(state.suggestedFileName);
+        } catch (error) {
+          if (error && error.name === "AbortError") {
+            state.pendingSaveHandle = null;
+            updateExportState();
+            selectAllBtn.disabled = false;
+            clearAllBtn.disabled = false;
+            return;
+          }
+
+          state.pendingSaveHandle = null;
+        }
+
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "export",
+              collectionIds
+            }
+          },
+          "*"
+        );
+      }
+
+      window.onmessage = async (event) => {
+        const message = event.data.pluginMessage;
+        if (!message) {
+          return;
+        }
+
+        if (message.type === "collections-loaded") {
+          state.fileName = message.fileName || "Untitled";
+          state.suggestedFileName = message.suggestedFileName || "figma-file.xcassets.zip";
+          state.collections = Array.isArray(message.collections) ? message.collections : [];
+          fileNameEl.textContent = state.fileName;
+          clearStatus();
+          renderCollections();
+          return;
+        }
+
+        if (message.type === "export-ready") {
+          try {
+            const zipBlob = buildZip(message.payload.files || []);
+            const result = await saveZip(zipBlob, message.payload.archiveName || state.suggestedFileName);
+            const summary = message.payload.summary || {};
+            const count = summary.exportedColorTokens || 0;
+            showStatus(`${count} Variables successfully exported.`, "success");
+          } catch (error) {
+            showStatus(
+              error instanceof Error ? error.message : "The ZIP archive could not be created.",
+              "error"
+            );
+          } finally {
+            state.pendingSaveHandle = null;
+            selectAllBtn.disabled = false;
+            clearAllBtn.disabled = false;
+            updateExportState();
+          }
+          return;
+        }
+
+        if (message.type === "error") {
+          state.pendingSaveHandle = null;
+          showStatus(message.message || "Export failed.", "error");
+          selectAllBtn.disabled = false;
+          clearAllBtn.disabled = false;
+          updateExportState();
+        }
+      };
+
+      selectAllBtn.addEventListener("click", () => {
+        for (const input of collectionsEl.querySelectorAll('input[type="checkbox"][data-collection-id]')) {
+          input.checked = true;
+          input.parentElement.classList.remove("is-unchecked");
+        }
+        clearStatus();
+        updateExportState();
+      });
+
+      clearAllBtn.addEventListener("click", () => {
+        for (const input of collectionsEl.querySelectorAll('input[type="checkbox"][data-collection-id]')) {
+          input.checked = false;
+          input.parentElement.classList.add("is-unchecked");
+        }
+        clearStatus();
+        updateExportState();
+      });
+
+      exportBtn.addEventListener("click", handleExportClick);
+    </script>
+  </body>
+</html>
