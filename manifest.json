@@ -1,0 +1,12 @@
+{
+  "name": "Varix",
+  "id": "varix",
+  "api": "1.0.0",
+  "editorType": ["figma"],
+  "main": "code.js",
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": ["https://cms.universeapps.limited"],
+    "reasoning": "Upload generated variables ZIP archives to the GuruApps CMS."
+  }
+}

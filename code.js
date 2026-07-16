@@ -1,8 +1,21 @@
 figma.showUI(__html__, {
   width: 460,
-  height: 457,
+  height: 565,
   themeColors: true
 });
+
+const BASE_URL = "https://cms.universeapps.limited";
+const DEFAULT_API_KEY = "9ab6830f-366d-4a34-8767-27b1cf239e60";
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const APP_IDS = new Set([
+  "cleaner-guru",
+  "keep-clean",
+  "notee",
+  "reroom-ai",
+  "scan-guru",
+  "visify"
+]);
+const SETTINGS_KEY = "varix-upload-settings";
 
 function sanitizeBaseName(value) {
   return (value || "figma-file")
@@ -255,12 +268,16 @@ function makeExportSummary(selectedCollections, exportedCount, skippedNonColorCo
 async function sendCollectionsToUI() {
   try {
     const collections = await getCollectionsSummary();
+    const settings = (await figma.clientStorage.getAsync(SETTINGS_KEY)) || {};
 
     figma.ui.postMessage({
       type: "collections-loaded",
       fileName: figma.root.name || "Untitled",
       suggestedFileName: `${sanitizeBaseName(figma.root.name)}.xcassets.zip`,
-      collections
+      collections,
+      settings: {
+        appId: typeof settings.appId === "string" ? settings.appId : "reroom-ai"
+      }
     });
   } catch (error) {
     figma.ui.postMessage({
@@ -362,6 +379,41 @@ async function buildXcodeAssetExport(selectedCollectionIds) {
   };
 }
 
+async function uploadVariables(appId, zipBytes) {
+  if (!APP_IDS.has(appId)) {
+    throw new Error("Select a valid product before exporting.");
+  }
+
+  const bytes = zipBytes instanceof Uint8Array ? zipBytes : new Uint8Array(zipBytes);
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) {
+    throw new Error(`File too large. Maximum upload size is ${MAX_UPLOAD_BYTES} bytes.`);
+  }
+
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: "application/zip" }), `${appId}.zip`);
+
+  const response = await fetch(`${BASE_URL}/api/${appId}-variables/plugin-upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `service-accounts API-Key ${DEFAULT_API_KEY}`
+    },
+    body: form
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = { error: "Upload failed" };
+  }
+
+  if (!response.ok) {
+    throw new Error(`Upload failed (${response.status}): ${data.error || "Unknown error"}`);
+  }
+
+  return data;
+}
+
 figma.ui.onmessage = async (message) => {
   if (!message || typeof message !== "object") {
     return;
@@ -378,6 +430,27 @@ figma.ui.onmessage = async (message) => {
       figma.ui.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Export failed."
+      });
+    }
+    return;
+  }
+
+  if (message.type === "upload-variables") {
+    try {
+      await figma.clientStorage.setAsync(SETTINGS_KEY, {
+        appId: message.appId
+      });
+
+      const result = await uploadVariables(message.appId, message.zipBytes);
+      figma.ui.postMessage({
+        type: "upload-ready",
+        result,
+        summary: message.summary || null
+      });
+    } catch (error) {
+      figma.ui.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Upload failed."
       });
     }
     return;

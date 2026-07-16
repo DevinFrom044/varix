@@ -114,6 +114,42 @@
         color: #ff6b6b;
       }
 
+      .settings {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .field-label {
+        font-size: 11px;
+        line-height: 1.2;
+        color: #8e8e94;
+      }
+
+      select {
+        width: 100%;
+        min-height: 40px;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 12px;
+        background: #22222399;
+        color: #ffffff;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        outline: none;
+      }
+
+      select {
+        appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, #8e8e94 50%), linear-gradient(135deg, #8e8e94 50%, transparent 50%);
+        background-position: calc(100% - 18px) 17px, calc(100% - 13px) 17px;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        padding-right: 34px;
+      }
+
       .collections {
         display: flex;
         flex-direction: column;
@@ -295,6 +331,18 @@
         </div>
       </div>
 
+      <div class="settings">
+        <span class="field-label">Product</span>
+        <select id="product-select">
+          <option value="cleaner-guru">Cleaner Guru</option>
+          <option value="keep-clean">Keep Clean</option>
+          <option value="notee">Notee</option>
+          <option value="reroom-ai">ReRoom AI</option>
+          <option value="scan-guru">Scan Guru</option>
+          <option value="visify">Visify</option>
+        </select>
+      </div>
+
       <div id="collections" class="collections">
         <div class="collection">
           <div class="collection-left">
@@ -323,7 +371,7 @@
         fileName: "Untitled",
         suggestedFileName: "figma-file.xcassets.zip",
         collections: [],
-        pendingSaveHandle: null
+        pendingSummary: null
       };
 
       const textEncoder = new TextEncoder();
@@ -335,6 +383,7 @@
       const exportBtn = document.getElementById("export-btn");
       const selectAllBtn = document.getElementById("select-all-btn");
       const clearAllBtn = document.getElementById("clear-all-btn");
+      const productSelect = document.getElementById("product-select");
 
       function showStatus(message, tone) {
         statusEmojiEl.textContent = tone === "error" ? "❌" : "✅";
@@ -354,7 +403,10 @@
       }
 
       function updateExportState() {
-        exportBtn.disabled = getSelectedCollectionIds().length === 0 || state.collections.length === 0;
+        exportBtn.disabled =
+          getSelectedCollectionIds().length === 0 ||
+          state.collections.length === 0 ||
+          !productSelect.value;
       }
 
       function escapeHtml(value) {
@@ -426,36 +478,6 @@
         }
 
         updateExportState();
-      }
-
-      function downloadBlob(blob, fileName) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
-
-      async function pickSaveHandle(suggestedFileName) {
-        if (typeof window.showSaveFilePicker !== "function") {
-          return null;
-        }
-
-        return window.showSaveFilePicker({
-          suggestedName: suggestedFileName,
-          excludeAcceptAllOption: false,
-          types: [
-            {
-              description: "ZIP archive",
-              accept: {
-                "application/zip": [".zip"]
-              }
-            }
-          ]
-        });
       }
 
       function createCrc32Table() {
@@ -589,19 +611,6 @@
         });
       }
 
-      async function saveZip(blob, suggestedFileName) {
-        if (state.pendingSaveHandle) {
-          const writable = await state.pendingSaveHandle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-          state.pendingSaveHandle = null;
-          return "saved";
-        }
-
-        downloadBlob(blob, suggestedFileName);
-        return "downloaded";
-      }
-
       async function handleExportClick() {
         const collectionIds = getSelectedCollectionIds();
         if (collectionIds.length === 0) {
@@ -609,24 +618,16 @@
           return;
         }
 
+        if (!productSelect.value) {
+          showStatus("Select a product before exporting.", "error");
+          return;
+        }
+
         clearStatus();
         exportBtn.disabled = true;
         selectAllBtn.disabled = true;
         clearAllBtn.disabled = true;
-
-        try {
-          state.pendingSaveHandle = await pickSaveHandle(state.suggestedFileName);
-        } catch (error) {
-          if (error && error.name === "AbortError") {
-            state.pendingSaveHandle = null;
-            updateExportState();
-            selectAllBtn.disabled = false;
-            clearAllBtn.disabled = false;
-            return;
-          }
-
-          state.pendingSaveHandle = null;
-        }
+        productSelect.disabled = true;
 
         parent.postMessage(
           {
@@ -649,6 +650,9 @@
           state.fileName = message.fileName || "Untitled";
           state.suggestedFileName = message.suggestedFileName || "figma-file.xcassets.zip";
           state.collections = Array.isArray(message.collections) ? message.collections : [];
+          if (message.settings && message.settings.appId) {
+            productSelect.value = message.settings.appId;
+          }
           fileNameEl.textContent = state.fileName;
           clearStatus();
           renderCollections();
@@ -658,29 +662,51 @@
         if (message.type === "export-ready") {
           try {
             const zipBlob = buildZip(message.payload.files || []);
-            const result = await saveZip(zipBlob, message.payload.archiveName || state.suggestedFileName);
-            const summary = message.payload.summary || {};
-            const count = summary.exportedColorTokens || 0;
-            showStatus(`${count} Variables successfully exported.`, "success");
+            const zipBytes = await zipBlob.arrayBuffer();
+            state.pendingSummary = message.payload.summary || {};
+            parent.postMessage(
+              {
+                pluginMessage: {
+                  type: "upload-variables",
+                  appId: productSelect.value,
+                  zipBytes,
+                  summary: state.pendingSummary
+                }
+              },
+              "*"
+            );
           } catch (error) {
             showStatus(
               error instanceof Error ? error.message : "The ZIP archive could not be created.",
               "error"
             );
-          } finally {
-            state.pendingSaveHandle = null;
             selectAllBtn.disabled = false;
             clearAllBtn.disabled = false;
+            productSelect.disabled = false;
             updateExportState();
           }
           return;
         }
 
+        if (message.type === "upload-ready") {
+          const summary = message.summary || state.pendingSummary || {};
+          const count = summary.exportedColorTokens || 0;
+          const productName = productSelect.options[productSelect.selectedIndex].textContent;
+          showStatus(`${count} Variables successfully exported to ${productName}.`, "success");
+          state.pendingSummary = null;
+          selectAllBtn.disabled = false;
+          clearAllBtn.disabled = false;
+          productSelect.disabled = false;
+          updateExportState();
+          return;
+        }
+
         if (message.type === "error") {
-          state.pendingSaveHandle = null;
+          state.pendingSummary = null;
           showStatus(message.message || "Export failed.", "error");
           selectAllBtn.disabled = false;
           clearAllBtn.disabled = false;
+          productSelect.disabled = false;
           updateExportState();
         }
       };
@@ -699,6 +725,11 @@
           input.checked = false;
           input.parentElement.classList.add("is-unchecked");
         }
+        clearStatus();
+        updateExportState();
+      });
+
+      productSelect.addEventListener("change", () => {
         clearStatus();
         updateExportState();
       });
