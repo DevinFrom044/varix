@@ -1,6 +1,6 @@
 {
   "name": "Varix",
-  "id": "varix",
+  "id": "varix-cms-upload",
   "api": "1.0.0",
   "editorType": ["figma"],
   "main": "code.js",

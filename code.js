@@ -265,6 +265,154 @@ function makeExportSummary(selectedCollections, exportedCount, skippedNonColorCo
   };
 }
 
+function concatUint8Arrays(chunks) {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return output;
+}
+
+function createCrc32Table() {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let value = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      if ((value & 1) === 1) {
+        value = 0xedb88320 ^ (value >>> 1);
+      } else {
+        value >>>= 1;
+      }
+    }
+    table[i] = value >>> 0;
+  }
+  return table;
+}
+
+const crc32Table = createCrc32Table();
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function writeUint16(view, offset, value) {
+  view.setUint16(offset, value, true);
+}
+
+function writeUint32(view, offset, value) {
+  view.setUint32(offset, value, true);
+}
+
+function getDosDateTime(date) {
+  const safeDate = new Date(date);
+  const year = Math.max(1980, safeDate.getFullYear());
+  const dosTime =
+    ((safeDate.getHours() & 0x1f) << 11) |
+    ((safeDate.getMinutes() & 0x3f) << 5) |
+    Math.floor(safeDate.getSeconds() / 2);
+  const dosDate =
+    (((year - 1980) & 0x7f) << 9) |
+    (((safeDate.getMonth() + 1) & 0x0f) << 5) |
+    (safeDate.getDate() & 0x1f);
+  return { dosDate, dosTime };
+}
+
+function stringToBytes(value) {
+  const bytes = new Uint8Array(value.length);
+  for (let index = 0; index < value.length; index += 1) {
+    bytes[index] = value.charCodeAt(index) & 0xff;
+  }
+  return bytes;
+}
+
+function buildZipBytes(files) {
+  const now = new Date();
+  const localParts = [];
+  const centralParts = [];
+  let localOffset = 0;
+
+  for (const file of files) {
+    const fileNameBytes = stringToBytes(file.path);
+    const contentBytes = stringToBytes(file.content);
+    const checksum = crc32(contentBytes);
+    const { dosDate, dosTime } = getDosDateTime(now);
+
+    const localHeader = new Uint8Array(30 + fileNameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    writeUint32(localView, 0, 0x04034b50);
+    writeUint16(localView, 4, 20);
+    writeUint16(localView, 6, 0);
+    writeUint16(localView, 8, 0);
+    writeUint16(localView, 10, dosTime);
+    writeUint16(localView, 12, dosDate);
+    writeUint32(localView, 14, checksum);
+    writeUint32(localView, 18, contentBytes.length);
+    writeUint32(localView, 22, contentBytes.length);
+    writeUint16(localView, 26, fileNameBytes.length);
+    writeUint16(localView, 28, 0);
+    localHeader.set(fileNameBytes, 30);
+    localParts.push(localHeader, contentBytes);
+
+    const centralHeader = new Uint8Array(46 + fileNameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    writeUint32(centralView, 0, 0x02014b50);
+    writeUint16(centralView, 4, 20);
+    writeUint16(centralView, 6, 20);
+    writeUint16(centralView, 8, 0);
+    writeUint16(centralView, 10, 0);
+    writeUint16(centralView, 12, dosTime);
+    writeUint16(centralView, 14, dosDate);
+    writeUint32(centralView, 16, checksum);
+    writeUint32(centralView, 20, contentBytes.length);
+    writeUint32(centralView, 24, contentBytes.length);
+    writeUint16(centralView, 28, fileNameBytes.length);
+    writeUint16(centralView, 30, 0);
+    writeUint16(centralView, 32, 0);
+    writeUint16(centralView, 34, 0);
+    writeUint16(centralView, 36, 0);
+    writeUint32(centralView, 38, 0);
+    writeUint32(centralView, 42, localOffset);
+    centralHeader.set(fileNameBytes, 46);
+    centralParts.push(centralHeader);
+
+    localOffset += localHeader.length + contentBytes.length;
+  }
+
+  const centralDirectory = concatUint8Arrays(centralParts);
+  const localDirectory = concatUint8Arrays(localParts);
+  const endOfCentralDirectory = new Uint8Array(22);
+  const endView = new DataView(endOfCentralDirectory.buffer);
+  writeUint32(endView, 0, 0x06054b50);
+  writeUint16(endView, 4, 0);
+  writeUint16(endView, 6, 0);
+  writeUint16(endView, 8, files.length);
+  writeUint16(endView, 10, files.length);
+  writeUint32(endView, 12, centralDirectory.length);
+  writeUint32(endView, 16, localDirectory.length);
+  writeUint16(endView, 20, 0);
+
+  return concatUint8Arrays([localDirectory, centralDirectory, endOfCentralDirectory]);
+}
+
+function buildMultipartBody(fileName, bytes, boundary) {
+  const header = stringToBytes(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+      `Content-Type: application/zip\r\n\r\n`
+  );
+  const footer = stringToBytes(`\r\n--${boundary}--\r\n`);
+  return concatUint8Arrays([header, bytes, footer]);
+}
+
 async function sendCollectionsToUI() {
   try {
     const collections = await getCollectionsSummary();
@@ -389,15 +537,16 @@ async function uploadVariables(appId, zipBytes) {
     throw new Error(`File too large. Maximum upload size is ${MAX_UPLOAD_BYTES} bytes.`);
   }
 
-  const form = new FormData();
-  form.append("file", new Blob([bytes], { type: "application/zip" }), `${appId}.zip`);
+  const boundary = `----varix-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+  const body = buildMultipartBody(`${appId}.zip`, bytes, boundary);
 
   const response = await fetch(`${BASE_URL}/api/${appId}-variables/plugin-upload`, {
     method: "POST",
     headers: {
-      Authorization: `service-accounts API-Key ${DEFAULT_API_KEY}`
+      Authorization: `service-accounts API-Key ${DEFAULT_API_KEY}`,
+      "Content-Type": `multipart/form-data; boundary=${boundary}`
     },
-    body: form
+    body
   });
 
   let data = {};
@@ -422,35 +571,21 @@ figma.ui.onmessage = async (message) => {
   if (message.type === "export") {
     try {
       const payload = await buildXcodeAssetExport(message.collectionIds || []);
+      await figma.clientStorage.setAsync(SETTINGS_KEY, {
+        appId: message.appId
+      });
+
+      const zipBytes = buildZipBytes(payload.files);
+      const result = await uploadVariables(message.appId, zipBytes);
       figma.ui.postMessage({
-        type: "export-ready",
-        payload
+        type: "upload-ready",
+        result,
+        summary: payload.summary
       });
     } catch (error) {
       figma.ui.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Export failed."
-      });
-    }
-    return;
-  }
-
-  if (message.type === "upload-variables") {
-    try {
-      await figma.clientStorage.setAsync(SETTINGS_KEY, {
-        appId: message.appId
-      });
-
-      const result = await uploadVariables(message.appId, message.zipBytes);
-      figma.ui.postMessage({
-        type: "upload-ready",
-        result,
-        summary: message.summary || null
-      });
-    } catch (error) {
-      figma.ui.postMessage({
-        type: "error",
-        message: error instanceof Error ? error.message : "Upload failed."
       });
     }
     return;
