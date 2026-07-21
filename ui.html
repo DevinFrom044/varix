@@ -121,6 +121,12 @@
         min-width: 0;
       }
 
+      .settings-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+      }
+
       .field-label {
         font-size: 11px;
         line-height: 1.2;
@@ -331,16 +337,29 @@
         </div>
       </div>
 
-      <div class="settings">
-        <span class="field-label">Product</span>
-        <select id="product-select">
-          <option value="cleaner-guru">Cleaner Guru</option>
-          <option value="keep-clean">Keep Clean</option>
-          <option value="notee">Notee</option>
-          <option value="reroom-ai">ReRoom AI</option>
-          <option value="scan-guru">Scan Guru</option>
-          <option value="visify">Visify</option>
-        </select>
+      <div class="settings-row">
+        <label class="settings">
+          <span class="field-label">Product</span>
+          <select id="product-select">
+            <option value="" selected>Select</option>
+            <option value="cleaner-guru">Cleaner Guru</option>
+            <option value="keep-clean">Keep Clean</option>
+            <option value="notee">Notee</option>
+            <option value="reroom-ai">ReRoom AI</option>
+            <option value="scan-guru">Scan Guru</option>
+            <option value="visify">Visify</option>
+          </select>
+        </label>
+
+        <label class="settings">
+          <span class="field-label">Target</span>
+          <select id="target-select">
+            <option value="" selected>Select</option>
+            <option value="main">Main</option>
+            <option value="extension">Extension</option>
+            <option value="watchosapp">iWatch</option>
+          </select>
+        </label>
       </div>
 
       <div id="collections" class="collections">
@@ -382,6 +401,7 @@
       const selectAllBtn = document.getElementById("select-all-btn");
       const clearAllBtn = document.getElementById("clear-all-btn");
       const productSelect = document.getElementById("product-select");
+      const targetSelect = document.getElementById("target-select");
 
       function showStatus(message, tone) {
         statusEmojiEl.textContent = tone === "error" ? "❌" : "✅";
@@ -404,7 +424,8 @@
         exportBtn.disabled =
           getSelectedCollectionIds().length === 0 ||
           state.collections.length === 0 ||
-          !productSelect.value;
+          !productSelect.value ||
+          !targetSelect.value;
       }
 
       function escapeHtml(value) {
@@ -490,18 +511,25 @@
           return;
         }
 
+        if (!targetSelect.value) {
+          showStatus("Select a target before exporting.", "error");
+          return;
+        }
+
         clearStatus();
         exportBtn.disabled = true;
         selectAllBtn.disabled = true;
         clearAllBtn.disabled = true;
         productSelect.disabled = true;
+        targetSelect.disabled = true;
 
         parent.postMessage(
           {
             pluginMessage: {
               type: "export",
               collectionIds,
-              appId: productSelect.value
+              appId: productSelect.value,
+              target: targetSelect.value
             }
           },
           "*"
@@ -518,9 +546,6 @@
           state.fileName = message.fileName || "Untitled";
           state.suggestedFileName = message.suggestedFileName || "figma-file.xcassets.zip";
           state.collections = Array.isArray(message.collections) ? message.collections : [];
-          if (message.settings && message.settings.appId) {
-            productSelect.value = message.settings.appId;
-          }
           fileNameEl.textContent = state.fileName;
           clearStatus();
           renderCollections();
@@ -531,10 +556,12 @@
           const summary = message.summary || {};
           const count = summary.exportedColorTokens || 0;
           const productName = productSelect.options[productSelect.selectedIndex].textContent;
-          showStatus(`${count} Variables successfully exported to ${productName}.`, "success");
+          const targetName = targetSelect.options[targetSelect.selectedIndex].textContent;
+          showStatus(`${count} Variables successfully exported to ${productName} · ${targetName}.`, "success");
           selectAllBtn.disabled = false;
           clearAllBtn.disabled = false;
           productSelect.disabled = false;
+          targetSelect.disabled = false;
           updateExportState();
           return;
         }
@@ -544,6 +571,7 @@
           selectAllBtn.disabled = false;
           clearAllBtn.disabled = false;
           productSelect.disabled = false;
+          targetSelect.disabled = false;
           updateExportState();
         }
       };
@@ -567,6 +595,11 @@
       });
 
       productSelect.addEventListener("change", () => {
+        clearStatus();
+        updateExportState();
+      });
+
+      targetSelect.addEventListener("change", () => {
         clearStatus();
         updateExportState();
       });

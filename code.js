@@ -15,7 +15,8 @@ const APP_IDS = new Set([
   "scan-guru",
   "visify"
 ]);
-const SETTINGS_KEY = "varix-upload-settings";
+const TARGET_IDS = new Set(["main", "extension", "watchosapp"]);
+const TARGET_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
 function sanitizeBaseName(value) {
   return (value || "figma-file")
@@ -416,16 +417,12 @@ function buildMultipartBody(fileName, bytes, boundary) {
 async function sendCollectionsToUI() {
   try {
     const collections = await getCollectionsSummary();
-    const settings = (await figma.clientStorage.getAsync(SETTINGS_KEY)) || {};
 
     figma.ui.postMessage({
       type: "collections-loaded",
       fileName: figma.root.name || "Untitled",
       suggestedFileName: `${sanitizeBaseName(figma.root.name)}.xcassets.zip`,
-      collections,
-      settings: {
-        appId: typeof settings.appId === "string" ? settings.appId : "reroom-ai"
-      }
+      collections
     });
   } catch (error) {
     figma.ui.postMessage({
@@ -527,10 +524,20 @@ async function buildXcodeAssetExport(selectedCollectionIds) {
   };
 }
 
-async function uploadVariables(appId, zipBytes) {
+function normalizeTarget(target) {
+  const normalized = String(target || "").trim().toLowerCase();
+  if (!TARGET_IDS.has(normalized) || !TARGET_RE.test(normalized) || /^\d+$/.test(normalized)) {
+    throw new Error("Select a valid target before exporting.");
+  }
+  return normalized;
+}
+
+async function uploadVariables(appId, target, zipBytes) {
   if (!APP_IDS.has(appId)) {
     throw new Error("Select a valid product before exporting.");
   }
+
+  const normalizedTarget = normalizeTarget(target);
 
   const bytes = zipBytes instanceof Uint8Array ? zipBytes : new Uint8Array(zipBytes);
   if (bytes.byteLength > MAX_UPLOAD_BYTES) {
@@ -540,7 +547,10 @@ async function uploadVariables(appId, zipBytes) {
   const boundary = `----varix-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
   const body = buildMultipartBody(`${appId}.zip`, bytes, boundary);
 
-  const response = await fetch(`${BASE_URL}/api/${appId}-variables/plugin-upload`, {
+  const uploadUrl =
+    `${BASE_URL}/api/${appId}-variables/plugin-upload` +
+    `?target=${encodeURIComponent(normalizedTarget)}`;
+  const response = await fetch(uploadUrl, {
     method: "POST",
     headers: {
       Authorization: `service-accounts API-Key ${DEFAULT_API_KEY}`,
@@ -570,13 +580,14 @@ figma.ui.onmessage = async (message) => {
 
   if (message.type === "export") {
     try {
+      if (!APP_IDS.has(message.appId)) {
+        throw new Error("Select a valid product before exporting.");
+      }
+      const target = normalizeTarget(message.target);
       const payload = await buildXcodeAssetExport(message.collectionIds || []);
-      await figma.clientStorage.setAsync(SETTINGS_KEY, {
-        appId: message.appId
-      });
 
       const zipBytes = buildZipBytes(payload.files);
-      const result = await uploadVariables(message.appId, zipBytes);
+      const result = await uploadVariables(message.appId, target, zipBytes);
       figma.ui.postMessage({
         type: "upload-ready",
         result,
